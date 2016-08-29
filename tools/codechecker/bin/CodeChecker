@@ -1,0 +1,106 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#                     The LLVM Compiler Infrastructure
+#
+# This file is distributed under the University of Illinois Open Source
+# License. See LICENSE.TXT for details.
+
+'''
+    used to kickstart codechecker
+    save original environment without modifications
+    used to run the logging in the same env
+'''
+
+import os
+import sys
+import signal
+import subprocess
+import pickle
+import ntpath
+import tempfile
+import shutil
+
+procPool = []
+
+def run_codechecker(original_env, checker_env):
+    '''
+    run the codechecker
+    original_env - will be saved for later usage by the build action logger
+    checker_env - codechecker will be run in the checker env
+    '''
+
+    package_bin = os.path.dirname(os.path.realpath(__file__))
+    package_root, bin_dir = ntpath.split(package_bin)
+
+    python = os.path.join('python')
+    common_lib = os.path.join(package_root,
+                              'cc_lib',
+                              'python2.7')
+
+    gen_lib = os.path.join(package_root,
+                           'cc_lib',
+                           'python2.7',
+                           'codechecker_gen')
+
+    checker_env['PYTHONPATH'] = common_lib + ':' + gen_lib
+
+    checker_env['CC_PACKAGE_ROOT'] = \
+        os.path.realpath(os.path.join(package_bin, os.pardir))
+
+    codechecker_main = os.path.join(package_root,
+                                    'cc_bin',
+                                    'CodeChecker.py')
+
+    checker_cmd = []
+    checker_cmd.append(python)
+    checker_cmd.append(codechecker_main)
+    checker_cmd.extend(sys.argv[1:])
+
+    proc = subprocess.Popen(checker_cmd, env=checker_env)
+    procPool.append(proc.pid)
+
+    proc.wait()
+    sys.exit(proc.returncode)
+
+def main():
+
+    original_env = os.environ.copy()
+    checker_env = original_env
+
+    tmp_dir = tempfile.mkdtemp()
+
+    original_env_file = os.path.join(tmp_dir, 'original_env.pickle')
+
+    try:
+        with open(original_env_file, 'wb') as env_save:
+            pickle.dump(original_env, env_save)
+
+        checker_env['CODECHECKER_ORIGINAL_BUILD_ENV'] = original_env_file
+    except Exception as ex:
+        print('Saving original build environment failed')
+        print(ex)
+
+    def signal_term_handler(sig, frame):
+        pid = os.getpid()
+        for p in procPool:
+            os.kill(p, signal.SIGINT)
+
+        # remove temporary directory
+        try:
+            shutil.rmtree(tmp_dir)
+        except Exception as ex:
+            print('Failed to remove temporary directory: ' + tmp_dir)
+            print('Manual cleanup is required.')
+            print(ex)
+
+        sys.exit(1)
+
+    signal.signal(signal.SIGTERM, signal_term_handler)
+    signal.signal(signal.SIGINT, signal_term_handler)
+
+    run_codechecker(original_env, checker_env)
+
+    shutil.rmtree(tmp_dir)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,12 @@
+#!/bin/bash
+# -*- coding: utf-8 -*-
+#                     The LLVM Compiler Infrastructure
+#
+# This file is distributed under the University of Illinois Open Source
+# License. See LICENSE.TXT for details.
+
+set -x # echo on
+
+CLANG=$1
+OUT=$2
+$CLANG --analyze -Xclang -analyzer-opt-analyze-headers -Xclang -analyzer-output=plist-multi-file -o $OUT test.cpp -I.

@@ -1,0 +1,10 @@
+{
+    "version":{
+        "major" : "5",
+        "minor" : "4"
+    },
+    "db_version":{
+        "major" : "5",
+        "minor" : "0"
+    }
+}
